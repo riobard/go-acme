@@ -41,7 +41,7 @@ If you want to run `go-acme` on the same host with the server, you can simply
 run
 
 ```sh
-openssl genrsa 4096 > account.key
+acme -genrsa 4096 > account.key
 acme -addr 127.0.0.1:81 -key account.key -domains example.com,www.example.com > chain.pem
 ```
 
@@ -59,7 +59,7 @@ ssh -N -T -R 81:127.0.0.1:8181 server-hostname
 Then you run
 
 ```sh
-openssl genrsa 4096 > account.key
+acme -genrsa 4096 > account.key
 acme -addr 127.0.0.1:8181 -key account.key -domains example.com,www.example.com > chain.pem
 ```
 

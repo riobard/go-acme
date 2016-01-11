@@ -11,13 +11,12 @@ import (
 	"regexp"
 )
 
-func loadRSAKey(r io.Reader) (*rsa.PrivateKey, error) {
+func readRSAKey(r io.Reader) (*rsa.PrivateKey, error) {
 	d, err := ioutil.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}
 	b := new(pem.Block)
-
 	// find the first RSA private key
 	for {
 		b, d = pem.Decode(d)
@@ -25,15 +24,7 @@ func loadRSAKey(r io.Reader) (*rsa.PrivateKey, error) {
 			return x509.ParsePKCS1PrivateKey(b.Bytes)
 		}
 	}
-
 	return nil, errors.New("no RSA private key found")
-}
-
-func saveRSAKey(key *rsa.PrivateKey) []byte {
-	return pem.EncodeToMemory(&pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(key),
-	})
 }
 
 // base64url encoding without padding

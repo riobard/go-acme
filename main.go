@@ -24,6 +24,7 @@ var cfg struct {
 	Domains string
 	API     string
 	Bits    int
+	GenRSA  int
 }
 
 func init() {
@@ -33,11 +34,25 @@ func init() {
 	flag.StringVar(&cfg.Domains, "domains", "", "comma-separated list of up to 100 domain names")
 	flag.StringVar(&cfg.API, "api", LetsEncryptProduction, "ACME API URL")
 	flag.IntVar(&cfg.Bits, "bit", 2048, "domain key length")
+	flag.IntVar(&cfg.GenRSA, "genrsa", 0, "generate RSA private key of the given bits in length")
 	flag.Parse()
 }
 
 func main() {
-	var err error
+
+	if cfg.GenRSA > 0 {
+		key, err := rsa.GenerateKey(rand.Reader, cfg.GenRSA)
+		if err != nil {
+			log.Fatalf("Failed to generate RSA private key of %d bits: %s", cfg.GenRSA, err)
+		}
+		if err := pem.Encode(os.Stdout, &pem.Block{
+			Type:  "RSA PRIVATE KEY",
+			Bytes: x509.MarshalPKCS1PrivateKey(key),
+		}); err != nil {
+			log.Fatalln(err)
+		}
+		return
+	}
 
 	domains := strings.Split(cfg.Domains, ",")
 	if len(domains) > 100 {
@@ -46,7 +61,7 @@ func main() {
 
 	// read the account key from stdin if not given in flags
 	keyReader := os.Stdin
-
+	var err error
 	if cfg.KeyPath != "" {
 		keyReader, err = os.Open(cfg.KeyPath)
 		if err != nil {
@@ -54,7 +69,7 @@ func main() {
 		}
 	}
 
-	key, err := loadRSAKey(keyReader)
+	key, err := readRSAKey(keyReader)
 	if err != nil {
 		log.Fatalf("Failed to parse key: %s", err)
 	}
@@ -124,7 +139,7 @@ func main() {
 		log.Fatalf("Failed to fetch certificates: %s", err)
 	}
 
-	// output domain key and certificates in PEM format
+	// print domain key in PEM to stdout
 	if err := pem.Encode(os.Stdout, &pem.Block{
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(domainKey),
@@ -132,6 +147,7 @@ func main() {
 		log.Fatalln(err)
 	}
 
+	// print domain certificate in PEM to stdout
 	if err := pem.Encode(os.Stdout, &pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: domainCrt.Raw,
@@ -139,6 +155,7 @@ func main() {
 		log.Fatalln(err)
 	}
 
+	// print issuer certificate in PEM to stdout
 	if err := pem.Encode(os.Stdout, &pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: issuerCrt.Raw,
