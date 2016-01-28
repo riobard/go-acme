@@ -5,8 +5,11 @@ just standard library. No external dependencies required.
 
 ## Features
 
-- Authorizing multiple domain names in parallel.
-- Generate certificates from separate hosts holding the account key.
+- Authorizing domain names in parallel to greatly speed up the
+    issuance of multi-domain SAN certificates.
+- Generate certificates from another host holding your account key. There is no
+    need to keep the account key on the public facing server.
+- Single binary for easy deployment. Just drop and run.
 
 
 ## Usage
@@ -29,19 +32,22 @@ location ^~ /.well-known/acme-challenge/ {
 }
 ```
 
-Then test the config and restart Nginx
+Then restart Nginx
 
 ```sh
-nginx -t
 nginx -s reload
 ```
 
-
-If you want to run `go-acme` on the same host with the server, you can simply
-run
+Generate a private account key if you do not already have one
 
 ```sh
 acme -genrsa 4096 > account.key
+```
+
+
+To run `go-acme` on the same host with the server, execute
+
+```sh
 acme -addr 127.0.0.1:81 -key account.key -domains example.com,www.example.com > chain.pem
 ```
 
@@ -49,21 +55,23 @@ and wait for the domain key, domain certifcate, and issuer certificate to be put
 into `chain.pem` file.
 
 
-If you want to run `go-acme` on another host, you need to use SSH to forward
-requests to port 81 on the server to the one running `go-acme`.
+Alternatively, you can run `go-acme` on another host. This has the benefit that
+there is no need to put the private account key on the public-facing web server.
+
+To do so, you need to use SSH to forward port 81 on the server to a free port
+(8181 in the example below) on the host running `go-acme`.
 
 ```sh
 ssh -N -T -R 81:127.0.0.1:8181 server-hostname
 ```
 
-Then you run
+and then run `go-acme` listening on the forwarded port (8181)
 
 ```sh
-acme -genrsa 4096 > account.key
 acme -addr 127.0.0.1:8181 -key account.key -domains example.com,www.example.com > chain.pem
 ```
 
-After that you need to copy `chain.pem` file back to the server.
+After that you need to copy `chain.pem` file back to the web server.
 
 
 
