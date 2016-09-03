@@ -2,7 +2,6 @@ package main
 
 import (
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
 	"flag"
@@ -19,21 +18,21 @@ const (
 )
 
 var cfg struct {
-	KeyPath string
+	accKey  string // path to account key
+	crtKey  string // path to certificate key
 	Addr    string
-	Domains string
+	Domains string // comma-separated domains
 	API     string
-	Bits    int
 	GenRSA  int
 }
 
 func init() {
 	log.SetFlags(0) // do not log date
-	flag.StringVar(&cfg.KeyPath, "key", "", "path to account key")
+	flag.StringVar(&cfg.accKey, "acckey", "", "path to account key")
+	flag.StringVar(&cfg.crtKey, "crtkey", "", "path to certificate key")
 	flag.StringVar(&cfg.Addr, "addr", "127.0.0.1:81", "challenge server address")
 	flag.StringVar(&cfg.Domains, "domains", "", "comma-separated list of up to 100 domain names")
 	flag.StringVar(&cfg.API, "api", LetsEncryptProduction, "ACME API URL")
-	flag.IntVar(&cfg.Bits, "bit", 2048, "domain key length")
 	flag.IntVar(&cfg.GenRSA, "genrsa", 0, "generate RSA private key of the given bits in length")
 	flag.Parse()
 }
@@ -41,15 +40,8 @@ func init() {
 func main() {
 
 	if cfg.GenRSA > 0 {
-		key, err := rsa.GenerateKey(rand.Reader, cfg.GenRSA)
-		if err != nil {
-			log.Fatalf("Failed to generate RSA private key of %d bits: %s", cfg.GenRSA, err)
-		}
-		if err := pem.Encode(os.Stdout, &pem.Block{
-			Type:  "RSA PRIVATE KEY",
-			Bytes: x509.MarshalPKCS1PrivateKey(key),
-		}); err != nil {
-			log.Fatalln(err)
+		if err := genKey(os.Stdout, cfg.GenRSA); err != nil {
+			log.Printf("Failed to generate RSA key: %v", err)
 		}
 		return
 	}
@@ -59,23 +51,20 @@ func main() {
 		log.Fatalf("Too many domains (%d > 100)", len(domains))
 	}
 
-	// read the account key from stdin if not given in flags
-	keyReader := os.Stdin
-	var err error
-	if cfg.KeyPath != "" {
-		keyReader, err = os.Open(cfg.KeyPath)
-		if err != nil {
-			log.Fatalf("Failed to read account key: %s", err)
-		}
+	// read account key
+	accKey, err := openKey(cfg.accKey)
+	if err != nil {
+		log.Fatalf("Failed to parse account key: %s", err)
 	}
 
-	key, err := readRSAKey(keyReader)
+	// read certificate key
+	crtKey, err := openKey(cfg.crtKey)
 	if err != nil {
-		log.Fatalf("Failed to parse key: %s", err)
+		log.Fatalf("Failed to parse certificate key: %s", err)
 	}
 
 	log.Printf("Connecting to ACME server at %s", cfg.API)
-	acme, err := OpenACME(cfg.API, key)
+	acme, err := OpenACME(cfg.API, accKey)
 	if err != nil {
 		log.Fatalf("Failed to connect to ACME server: %s", err)
 	}
@@ -120,15 +109,9 @@ func main() {
 		log.Fatalln("Some domains failed authorization")
 	}
 
-	log.Printf("Generating domain key")
-	domainKey, err := rsa.GenerateKey(rand.Reader, cfg.Bits)
-	if err != nil {
-		log.Fatalf("Failed to generate domain key: %s", err)
-	}
-
 	// create certificate signing request
 	tpl := &x509.CertificateRequest{DNSNames: domains}
-	csr, err := x509.CreateCertificateRequest(rand.Reader, tpl, domainKey)
+	csr, err := x509.CreateCertificateRequest(rand.Reader, tpl, crtKey)
 	if err != nil {
 		log.Fatalf("Failed to create certificate request: %s", err)
 	}
@@ -137,14 +120,6 @@ func main() {
 	domainCrt, issuerCrt, err := acme.NewCert(csr)
 	if err != nil {
 		log.Fatalf("Failed to fetch certificates: %s", err)
-	}
-
-	// print domain key in PEM to stdout
-	if err := pem.Encode(os.Stdout, &pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(domainKey),
-	}); err != nil {
-		log.Fatalln(err)
 	}
 
 	// print domain certificate in PEM to stdout
