@@ -38,21 +38,25 @@ Then restart Nginx
 nginx -s reload
 ```
 
-Generate a private account key if you do not already have one
+Generate a 4096-bit RSA account key if you do not have one yet
 
 ```sh
 acme -genrsa 4096 > account.key
 ```
 
+Generate a 2048-bit RSA certificate key if you do not have one yet
+
+```sh
+acme -genrsa 2048 > cert.key
+```
 
 To run `go-acme` on the same host with the server, execute
 
 ```sh
-acme -addr 127.0.0.1:81 -key account.key -domains example.com,www.example.com > chain.pem
+acme -addr 127.0.0.1:81 -acckey account.key -crtkey cert.key -domains example.com,www.example.com > cert.pem
 ```
 
-and wait for the domain key, domain certifcate, and issuer certificate to be put
-into `chain.pem` file.
+and wait for your domain certifcate and issuer certificate to be put into `cert.pem` file.
 
 
 Alternatively, you can run `go-acme` on another host. This has the benefit that
@@ -68,10 +72,10 @@ ssh -N -T -R 81:127.0.0.1:8181 server-hostname
 and then run `go-acme` listening on the forwarded port (8181)
 
 ```sh
-acme -addr 127.0.0.1:8181 -key account.key -domains example.com,www.example.com > chain.pem
+acme -addr 127.0.0.1:8181 -acckey account.key -crtkey cert.key -domains example.com,www.example.com > cert.pem
 ```
 
-After that you need to copy `chain.pem` file back to the web server.
+After that you need to copy `cert.key` and `cert.pem` files back to the web server.
 
 
 
