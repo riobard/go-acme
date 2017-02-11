@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 )
 
 const (
@@ -24,6 +25,7 @@ var cfg struct {
 	Domains string // comma-separated domains
 	API     string
 	GenRSA  int
+	Delay   time.Duration
 }
 
 func init() {
@@ -34,6 +36,7 @@ func init() {
 	flag.StringVar(&cfg.Domains, "domains", "", "comma-separated list of up to 100 domain names")
 	flag.StringVar(&cfg.API, "api", LetsEncryptProduction, "ACME API URL")
 	flag.IntVar(&cfg.GenRSA, "genrsa", 0, "generate RSA private key of the given bits in length")
+	flag.DurationVar(&cfg.Delay, "delay", 100*time.Millisecond, "delay per authorization to avoid hitting rate limit")
 	flag.Parse()
 }
 
@@ -93,6 +96,7 @@ func main() {
 			}
 			ch <- done
 		}(domain)
+		time.Sleep(cfg.Delay) // sleep 0.1 sec to avoid hitting rate limit
 	}
 
 	// collect authorization result
